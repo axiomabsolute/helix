@@ -1,7 +1,7 @@
 use futures_util::FutureExt;
 use helix_lsp::{
     block_on,
-    lsp::{self, CodeAction, CodeActionOrCommand, DiagnosticSeverity, NumberOrString},
+    lsp::{self, CodeAction, CodeActionOrCommand, DiagnosticSeverity, NumberOrString, SymbolKind},
     util::{diagnostic_to_lsp_diagnostic, lsp_pos_to_pos, lsp_range_to_range, range_to_lsp_range},
     OffsetEncoding,
 };
@@ -76,13 +76,93 @@ impl ui::menu::Item for lsp::Location {
     }
 }
 
+fn searchable_symbol_kind(symbol_kind: SymbolKind) -> String {
+    match symbol_kind {
+        SymbolKind::FILE => "File",
+        SymbolKind::MODULE => "Mod",
+        SymbolKind::NAMESPACE => "Ns",
+        SymbolKind::PACKAGE => "P",
+        SymbolKind::CLASS => "Class",
+        SymbolKind::METHOD => "M",
+        SymbolKind::PROPERTY => "Prop",
+        SymbolKind::FIELD => "Field",
+        SymbolKind::CONSTRUCTOR => "Constr",
+        SymbolKind::ENUM => "Enum",
+        SymbolKind::INTERFACE => "Int",
+        SymbolKind::FUNCTION => "Fn",
+        SymbolKind::VARIABLE => "Var",
+        SymbolKind::CONSTANT => "Const",
+        SymbolKind::STRING => "Str",
+        SymbolKind::NUMBER => "Num",
+        SymbolKind::BOOLEAN => "Bool",
+        SymbolKind::ARRAY => "Arr",
+        SymbolKind::OBJECT => "Obj",
+        SymbolKind::KEY => "Key",
+        SymbolKind::NULL => "NULL",
+        SymbolKind::ENUM_MEMBER => "EnumM",
+        SymbolKind::STRUCT => "S",
+        SymbolKind::EVENT => "E",
+        SymbolKind::OPERATOR => "Op",
+        SymbolKind::TYPE_PARAMETER => "T",
+        _ => "Unknown",
+    }
+    .into()
+}
+
+fn display_symbol_kind(symbol_kind: SymbolKind) -> String {
+    match symbol_kind {
+        SymbolKind::FILE => "File",
+        SymbolKind::MODULE => "Mod",
+        SymbolKind::NAMESPACE => "Ns",
+        SymbolKind::PACKAGE => "Pack",
+        SymbolKind::CLASS => "Class",
+        SymbolKind::METHOD => "Meth",
+        SymbolKind::PROPERTY => "Prop",
+        SymbolKind::FIELD => "Field",
+        SymbolKind::CONSTRUCTOR => "Constr",
+        SymbolKind::ENUM => "Enum",
+        SymbolKind::INTERFACE => "IntF",
+        SymbolKind::FUNCTION => "Fn",
+        SymbolKind::VARIABLE => "Var",
+        SymbolKind::CONSTANT => "Const",
+        SymbolKind::STRING => "Str",
+        SymbolKind::NUMBER => "Num",
+        SymbolKind::BOOLEAN => "Bool",
+        SymbolKind::ARRAY => "Arr",
+        SymbolKind::OBJECT => "Obj",
+        SymbolKind::KEY => "Key",
+        SymbolKind::NULL => "NULL",
+        SymbolKind::ENUM_MEMBER => "E::M",
+        SymbolKind::STRUCT => "S",
+        SymbolKind::EVENT => "E",
+        SymbolKind::OPERATOR => "Op",
+        SymbolKind::TYPE_PARAMETER => "T",
+        _ => "Unknown",
+    }
+    .into()
+}
+
 impl ui::menu::Item for lsp::SymbolInformation {
     /// Path to currently focussed document
     type Data = Option<lsp::Url>;
 
     fn label(&self, current_doc_path: &Self::Data) -> Spans {
         if current_doc_path.as_ref() == Some(&self.location.uri) {
-            self.name.as_str().into()
+            format!("[{}] {}", display_symbol_kind(self.kind), self.name).into()
+        } else {
+            match self.location.uri.to_file_path() {
+                Ok(path) => {
+                    let get_relative_path = path::get_relative_path(path.as_path());
+                    format!("{} ({})", &self.name, get_relative_path.to_string_lossy()).into()
+                }
+                Err(_) => format!("{} ({})", &self.name, &self.location.uri).into(),
+            }
+        }
+    }
+
+    fn filter_text(&self, data: &Self::Data) -> Cow<str> {
+        if data.as_ref() == Some(&self.location.uri) {
+            format!("[{}] {}", searchable_symbol_kind(self.kind), self.name).into()
         } else {
             match self.location.uri.to_file_path() {
                 Ok(path) => {
